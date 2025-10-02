@@ -16,7 +16,7 @@ Proyek ini bertujuan untuk melakukan analisis sentimen terhadap cuitan (tweet) d
 * Data berupa teks mentah (tweet) beserta metadata standar (id, waktu, dsb.).
 * Link Scraping Collab: https://colab.research.google.com/drive/1zXTAFSdnScbMxokrhiIYe2r50X0TPwii#scrollTo=LYDR51dJlVlX
 
-### 2. Pembersihan Data
+### 2. Pembersihan Data (Case Folding)
 
 * Menghapus URL, hashtag, mention, angka, dan karakter khusus.
 * Normalisasi teks (lowercase).
