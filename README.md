@@ -1,83 +1,121 @@
-
----
 # 5220411078 | Haryo Prastiko
 
-# Analisis Sentimen Twitter tentang Menkeu Purbaya dengan InSet Lexicon
+# Analisis Sentimen Twitter tentang Menkeu Purbaya
 
 ## Deskripsi Proyek
 
-Proyek ini bertujuan untuk melakukan analisis sentimen terhadap cuitan (tweet) dari Twitter yang berkaitan dengan **Menkeu Purbaya**. Proses analisis menggunakan pendekatan **lexicon-based sentiment analysis** dengan memanfaatkan **InSet Lexicon** (Indonesian Sentiment Lexicon).
+Proyek ini bertujuan untuk melakukan analisis sentimen pada cuitan Twitter terkait **Menkeu Purbaya**. Metode analisis yang digunakan bukan lagi pendekatan lexicon seperti InSet, tetapi menggunakan **pendekatan machine learning semi-supervised**, yaitu **Self-Training Classifier berbasis Logistic Regression**.
+
+Pendekatan ini memungkinkan model belajar dari sedikit data berlabel, kemudian secara otomatis memberi label pada data yang belum berlabel.
+
+---
 
 ## Tahapan Proses
 
 ### 1. Pengumpulan Data
 
-* Dataset dikumpulkan dari Twitter dengan kata kunci yang berkaitan dengan **Menkeu Purbaya**.
-* Data berupa teks mentah (tweet) beserta metadata standar (id, waktu, dsb.).
-* Link Scraping Collab: https://colab.research.google.com/drive/1zXTAFSdnScbMxokrhiIYe2r50X0TPwii#scrollTo=LYDR51dJlVlX
+* Data dikumpulkan dari Twitter menggunakan kata kunci yang berkaitan dengan **Menkeu Purbaya**.
+* Dataset berisi teks tweet + metadata.
+* Link scraping Colab:
+  (https://colab.research.google.com/drive/1zXTAFSdnScbMxokrhiIYe2r50X0TPwii)
 
-### 2. Pembersihan Data (Case Folding)
+---
 
-* Menghapus URL, hashtag, mention, angka, dan karakter khusus.
-* Normalisasi teks (lowercase).
-* Tokenisasi kata.
+### 2. Pembersihan Data (Preprocessing)
 
-### 3. Persiapan Lexicon
+Langkah-langkah preprocessing mencakup:
 
-* Menggunakan **InSet Lexicon** dari repositori [fajri91/InSet](https://github.com/fajri91/InSet).
-* Lexicon tersedia dalam format `positive.tsv` dan `negative.tsv`.
-* File tersebut dikonversi ke format **JSON** (`inset_lexicon.json`) agar lebih mudah digunakan pada pipeline analisis.
+* Menghapus URL, mention, hashtag, angka, dan simbol.
+* Lowercasing.
+* Normalisasi kata tidak baku.
+* Tokenisasi.
+* Hasil akhir disimpan dalam kolom `preprocessing`.
 
-  * Struktur JSON:
+---
 
-    ```json
-    {
-      "positive": {
-        "bagus": 1.0,
-        "luar_biasa": 1.0
-      },
-      "negative": {
-        "buruk": -1.0,
-        "gagal": -1.0
-      }
-    }
-    ```
+### 3. Pembagian Data Berlabel dan Tidak Berlabel
 
-### 4. Skoring Sentimen
+Dataset dibagi menjadi:
 
-* Setiap token dalam tweet dibandingkan dengan kata pada lexicon.
-* Jika token ada pada lexicon positif, nilainya ditambah dengan skor positif.
-* Jika token ada pada lexicon negatif, nilainya ditambah dengan skor negatif.
-* Nilai total menentukan label sentimen:
+**Data Berlabel Manual:**
 
-  * **Positive** jika skor > 0
-  * **Negative** jika skor < 0
-  * **Neutral** jika skor = 0
+| Label    | Jumlah |
+| -------- | ------ |
+| Positive | 100    |
+| Negative | 100    |
+| Neutral  | 50     |
 
-### 5. Pelabelan Sentimen
+**Data Tidak Berlabel:**
 
-* Fungsi Python dibuat untuk membaca setiap teks, menghitung skor, dan mengembalikan label sentimen.
-* Hasil label ditambahkan sebagai kolom baru pada dataset (`sentiment`).
+± 1000 tweet lainnya
 
-### 6. Analisis Distribusi
+Data berlabel digunakan sebagai *seed* untuk memulai proses self-training.
 
-* Distribusi jumlah tweet per kategori sentimen (positif, negatif, netral) dihitung.
-* Distribusi ini divisualisasikan dalam bentuk grafik batang atau pie chart.
+---
 
-### 7. Evaluasi dan Perbaikan (Opsional)
+## 4. Ekstraksi Fitur (TF-IDF)
 
-* Untuk mengatasi masalah **class imbalance**, dapat dilakukan:
+Sebelum masuk ke Logistic Regression, semua teks dikonversi menggunakan:
 
-  * Penyesuaian threshold.
-  * Penggunaan hybrid approach (lexicon + machine learning).
+```
+TF-IDF Vectorizer
+ngram_range = (1,2)
+max_features = 5000
+```
+---
+### 5. Semi-Supervised Learning — Self-Training
 
-## Hasil
+Metode utama yang digunakan adalah:
 
-* Dataset Twitter bertema **Menkeu Purbaya** berhasil diproses dengan pelabelan sentimen otomatis.
-* Distribusi sentimen memberikan gambaran umum mengenai persepsi publik di Twitter terhadap topik tersebut.
+```
+SelfTrainingClassifier(base_estimator=LogisticRegression)
+```
+
+#### **5.1 Pelatihan Awal (Supervised)**
+
+Model Logistic Regression dilatih hanya dengan 250 tweet berlabel.
+
+#### **5.2 Pseudo-Labeling**
+
+Model memprediksi data yang belum berlabel.
+Jika confidence model cukup tinggi (misal > 0.8), data tersebut diberikan pseudo-label.
+
+#### **5.3 Pelatihan Ulang (Iterasi Self-Training)**
+
+Dataset final = data berlabel + pseudo-label.
+Model dilatih ulang sehingga:
+
+* Mampu memahami data jauh lebih besar
+* Label otomatis semakin akurat
+* Performa meningkat meskipun data manual sedikit
+
+---
+
+### 6. Pelabelan Sentimen
+
+Setelah proses self-training selesai, model digunakan untuk memberi label pada seluruh dataset.
+
+Label yang digunakan:
+
+* **Positive**
+* **Neutral**
+* **Negative**
+
+Label akhir disimpan dalam kolom `sentiment`.
+
+---
+
+### 7. Analisis Distribusi
+
+Jumlah tweet per kategori dihitung, lalu divisualisasikan menggunakan grafik batang untuk melihat persepsi masyarakat di Twitter terhadap Menkeu Purbaya.
+
+---
 
 ## Referensi
 
-* Fajri Koto. *InSet Lexicon: Indonesian Sentiment Lexicon.* [https://github.com/fajri91/InSet](https://github.com/fajri91/InSet)
+* Scikit-Learn Self-Training Classifier
+* Scikit-Learn Logistic Regression
+* TF-IDF Vectorizer Documentation
 
 ---
+
